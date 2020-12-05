@@ -1,0 +1,272 @@
+<!DOCTYPE html><html id="top" lang="en"><head><meta charset="UTF-8">
+<title>MiniGL Example Application</title>
+<meta name="author"      content="Harald Markus Wirth, https://harald.ist.org/">
+<meta name="description" content="MiniGL test bed, showcasing the usage of the framework">
+<meta name="keywords"    content="minigl,webgl,opengl,example">
+<meta name="robots"      content="index,follow">
+<meta name="viewport"    content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="favicon.ico">
+<script type="module">
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////119:/
+import { MiniGL }                       from './minigl.js';
+import { PI, TAU, RtoD, DtoR }          from './vector_math.js';
+import { X, Y, Z, W, AXES, R, G, B, A } from './vector_math.js';
+import * as VMath                       from './vector_math.js';
+import * as Tests                       from './self_test.js';
+
+function init_minigl_objects () {
+	const minigl_test = new MiniGL({
+		instanceName     : 'test',
+		showLogo         : true,
+		viewport         : document.body,
+		clearColor       : [0,0,0, 1],
+		antiAlias        : true,
+		pixelSize        : 1,
+		renderContinuous : !true,
+		keyboardControls : !false,
+		mouseControls    : !false,
+		mirrorMouseX     : false,
+		mirrorMouseY     : false,
+		limitFPS         : false,
+		camera: {
+			fov      : 70*DtoR,
+			zNear    : 0.001,
+			zFar     : 1000000,
+		},
+		light: {
+			color             : [1, 1, 1],
+			ambient           : [0.2, 0.2, 0.2],
+			directionalVector : [-1, -1, -1],
+		},
+		callbacks: {
+			onInitWorld: (minigl)=>{
+				const canvases = {};
+				const textures = {};
+
+			/*
+				const image_textures_ids = {
+					skybox0        : '#skybox0',
+					skybox1        : '#skybox1',
+					skybox2        : '#skybox2',
+					constellations : '#constellations',
+					rings          : '#body_saturn_rings',
+					body_Sun       : '#body_sun',
+					Corona2d       : '#corona2d',
+					body_Corona    : '#body_corona',
+					body_Mercury   : '#body_mercury',
+					body_Venus     : '#body_venus',
+					body_Earth     : '#body_earth',
+					body_Mars      : '#body_mars',
+					body_Jupiter   : '#body_jupiter',
+					body_Saturn    : '#body_saturn',
+					body_Uranus    : '#body_uranus',
+					body_Neptune   : '#body_neptune',
+					body_Pluto     : '#body_pluto',
+					body_Ceres     : '#body_ceres',
+					body_Eris      : '#body_eris',
+				}
+				Object.keys( image_textures_ids ).forEach( (key)=>{
+					const id = image_textures_ids[key];
+					canvases[key] = minigl.generateTextureCanvas.fromImageElement( id );
+					canvases[key].dataset.textureKey = key;
+				});
+			*/
+
+				canvases.white = minigl.generateTexture.color( '#fff' );
+				canvases.dice  = minigl.generateTexture.dice();
+
+				Object.keys( canvases ).forEach( (key)=>{
+					textures[key] = minigl.textureFromCanvas( canvases[key] );
+				});
+
+
+				minigl.entities = {
+					coordinates: {
+						renderer       : 'directionalLight',
+						buffers        : minigl.primitives.coordinates( 1, [0,0,0] ),
+						textures       : textures['white'],
+						pixelated      : false,
+						color          : [1,1,1, 0.7],
+						lineWidth      : 2,
+						cullFaces      : 'back',
+						ignoreZBuffer  : false,
+						ignoreLight    : true,
+						ignoreTextures : true,
+						visible        : true,
+						selected       : false,
+						matrices       : {},
+					},
+					sun: {
+						renderer       : 'directionalLight',
+						buffers        : minigl.primitives.cube( 0.7 ),
+						textures       : textures['dice'],
+						pixelated      : false,
+						color          : [1,1,1, 1],
+						lineWidth      : 1,
+						cullFaces      : 'back',
+						ignoreZBuffer  : false,
+						ignoreLight    : false,
+						ignoreTextures : false,
+						visible        : true,
+						selected       : false,
+						matrices: {
+							rotation : VMath.identity_mat4(),
+						},
+					},
+					planet: {
+						renderer       : 'radialLight',
+						buffers        : minigl.primitives.sphere( 0.5, 72, 36 ),
+						textures       : textures['dice'],
+						pixelated      : false,
+						color          : [1,1,1, 1],
+						lineWidth      : 1,
+						cullFaces      : 'back',
+						ignoreZBuffer  : false,
+						ignoreLight    : false,
+						ignoreTextures : false,
+						visible        : true,
+						selected       : false,
+						matrices: {
+							rotation_0 : VMath.rotation_x_mat4(90*DtoR),
+							position   : VMath.identity_mat4(),
+							rotation   : VMath.identity_mat4(),
+						},
+					},
+				};
+
+			}, // onInitWorld
+
+			onResetCamera: (camera)=>{
+				// Camera starts at [0,0,0] looking towards -Z
+				camera.orbitAxis( AXES[Y], 45*DtoR );
+				camera.orbitAxis( AXES[X],-45*DtoR );
+				camera.translateRelative( 0, 0, -5 );
+			},
+
+			onUpdateScene: (minigl, timestamp_ms, elapsed_ms)=>{
+				const first_update = (minigl.custom.firstUpdate === true);
+
+				if (first_update) console.groupCollapsed( 'First update: ' + minigl.instanceName );
+
+				const elapsed_seconds = elapsed_ms / 1000;
+
+				Object.keys( minigl.entities ).forEach( (entity_key)=>{
+					const entity = minigl.entities[entity_key];
+
+					if (entity_key == 'sun') {
+						const angle = 30*DtoR * elapsed_seconds;
+						const rotation_matrix    = VMath.rotation_y_mat4( angle );
+						VMath.mat4_multiply_mat4(
+							entity.matrices.rotation,
+							rotation_matrix,
+							entity.matrices.rotation,
+						);
+					}
+
+					if (entity_key == 'planet') {
+						const angle = 30*DtoR * elapsed_seconds;
+
+						entity.position = [-2, 0, 0];
+						const translation_matrix = VMath.translation_mat4( entity.position );
+						const rotation_matrix    = VMath.rotation_y_mat4( angle );
+						const rotation_matrix_0  = VMath.rotation_y_mat4( angle*3 );
+
+						VMath.vec4_multiply_mat4(
+							entity.position,
+							entity.position,
+							translation_matrix,
+						);
+						VMath.vec4_multiply_mat4(
+							entity.position,
+							entity.position,
+							rotation_matrix,
+						);
+
+						VMath.mat4_multiply_mat4(
+							entity.matrices.rotation_0,
+							rotation_matrix_0,
+							entity.matrices.rotation_0,
+						);
+
+						entity.matrices.position = VMath.identity_mat4();
+						VMath.mat4_multiply_mat4(
+							entity.matrices.position,
+							translation_matrix,
+							entity.matrices.position,
+						);
+						VMath.mat4_multiply_mat4(
+							entity.matrices.rotation,
+							rotation_matrix,
+							entity.matrices.rotation,
+						);
+					}
+
+					if (first_update) console.log( entity_key + ':', entity );
+				});
+
+				//... If calculation only sometimes results in entity change,
+				//... you can disable continuous rendering and request updates here:
+				if (!false) minigl.requestUpdate();
+
+				if (first_update) {
+					console.groupEnd();
+					minigl.custom.firstUpdate = false;
+				}
+
+			}, // onUpdateScene
+		},
+		debug            : {
+			collapseInitLog : true,
+			exits           : false,
+			meshCreation    : false,
+			webGL0          : !false,
+			webGL1          : !false,
+			checkGLErrors   : !false,
+			inDocumentTitle : false,
+			showOverlay     : !false,
+			everyFrame      : true,
+			camera          : false,
+			cameraCollapse  : true,
+			showMenu        : !false,
+			lockMenu        : !false,
+		},
+		custom: {
+			firstUpdate: true,
+		}
+	});
+
+} // init_minigl_objects
+
+
+/**
+ * remove_noscript_elements();
+ */
+function remove_noscript_elements () {
+	document.querySelectorAll( '.noscript' ).forEach( (element)=>{
+		element.parentNode.removeChild( element );
+	});
+
+	document.body.classList.remove( 'hide_interactive' );
+
+} // remove_noscript_elements
+
+
+addEventListener( 'load', ()=>{
+	remove_noscript_elements();
+	init_minigl_objects();
+	//Tests.start();
+});
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////119:/
+</script><style>
+* { margin:0; padding:0; }
+html, body { width:100%; height:100%; }
+</style></head><body>
+
+<p class="noscript" style="position:absolute">
+	This page makes use of <b class="error">JavaScript</b>.
+	My code is 100% nice: No external code, no trackers.
+	<br>
+	Enabling scripts for this document is recommended.
+</p>
+
+</body>
